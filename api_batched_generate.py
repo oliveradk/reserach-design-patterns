@@ -1,3 +1,11 @@
+# Patterns for making many async OpenAI-compatible API calls with progress tracking.
+# Uses AsyncOpenAI + semaphore for concurrency control.
+#
+# Three modes:
+#   generate_batch              — collect all results at the end (tqdm_asyncio.gather)
+#   generate_batch_iterator     — yield (index, result) as each call finishes (asyncio.as_completed)
+#   generate_batch_write_incremental — same as iterator, but appends each result to a JSONL file
+
 import asyncio
 import os
 import json
@@ -9,8 +17,8 @@ from tqdm.asyncio import tqdm_asyncio
 
 async def generate(
     client: AsyncOpenAI,
-    semaphore: asyncio.Semaphore, 
-    model: str, 
+    semaphore: asyncio.Semaphore,
+    model: str,
     messages: list[dict[str, str]],
     generate_kwargs: dict
 ) -> dict:
