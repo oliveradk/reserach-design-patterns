@@ -1,6 +1,7 @@
 import asyncio
-
+import os
 import json
+
 from openai import AsyncOpenAI
 from tqdm.asyncio import tqdm_asyncio
 
@@ -82,8 +83,11 @@ async def generate_batch_write_incremental(
     return [results[i] for i in sorted(results.keys())]
 
 async def main():
-    results = await generate_batch_write_incremental(
-        client=AsyncOpenAI(),
+    from dotenv import load_dotenv
+    load_dotenv()
+
+    results_1 = await generate_batch_write_incremental(
+        client=AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY")),
         model="gpt-4.1-mini",
         messages_batch=[
             [{"role": "user", "content": "Hello, how are you?"}],
@@ -91,11 +95,23 @@ async def main():
         ],
         generate_kwargs={
             "temperature": 0.7,
-            "max_tokens": 128
+            "max_tokens": 16
         },
-        output_path="results.jsonl",
+        output_path="results_1.jsonl",
     )
-    print(len(results))
+    results_2 = await generate_batch(
+        client=AsyncOpenAI(api_key=os.getenv("OPENROUTER_API_KEY")),
+        model="deepseek/deepseek-chat-v3.1",
+        messages_batch=[
+            [{"role": "user", "content": "Hello, how are you?"}],
+            [{"role": "user", "content": "What is the capital of France?"}],
+        ],
+        generate_kwargs={
+            "temperature": 0.7,
+            "max_tokens": 16
+        },
+        output_path="results_2.jsonl",
+    )
 
 if __name__ == "__main__":
     asyncio.run(main())
