@@ -1,9 +1,11 @@
 import asyncio
 import os
 import json
+from pathlib import Path
 
 from openai import AsyncOpenAI
 from tqdm.asyncio import tqdm_asyncio
+
 
 async def generate(
     client: AsyncOpenAI,
@@ -20,32 +22,40 @@ async def generate(
         ) 
         return {"messages": messages, "response": response.choices[0].message.content}
 
+
 async def generate_batch(
     client: AsyncOpenAI,
-    model: str, 
-    messages_batch: list[list[dict[str, str]]], 
+    model: str,
+    messages_batch: list[list[dict[str, str]]],
     max_workers: int = 32,
-    generate_kwargs: dict = {},
+    generate_kwargs: dict | None = None,
+    desc: str = "generating",
 ):
+    if generate_kwargs is None:
+        generate_kwargs = {}
+    
     semaphore = asyncio.Semaphore(max_workers)
     tasks = [
         asyncio.create_task(
-            generate(client,semaphore, model, messages, generate_kwargs)
-        ) 
+            generate(client, semaphore, model, messages, generate_kwargs)
+        )
         for messages in messages_batch
     ]
-    results = await tqdm_asyncio.gather(*tasks, desc="Querying")
+    results = await tqdm_asyncio.gather(*tasks, desc=desc)
 
     return results
 
+
 async def generate_batch_iterator(
     client: AsyncOpenAI,
-    model: str, 
-    messages_batch: list[list[dict[str, str]]], 
+    model: str,
+    messages_batch: list[list[dict[str, str]]],
     max_workers: int = 32,
-    generate_kwargs: dict = {},
+    generate_kwargs: dict | None = None,
     desc: str = "generating",
 ):
+    if generate_kwargs is None:
+        generate_kwargs = {}
     semaphore = asyncio.Semaphore(max_workers)
     
     # Tag each task with its original index
@@ -70,17 +80,28 @@ def jsonl_append(path: str, data: dict):
 
 async def generate_batch_write_incremental(
     client: AsyncOpenAI,
-    model: str, 
-    messages_batch: list[list[dict[str, str]]], 
+    model: str,
+    messages_batch: list[list[dict[str, str]]],
     max_workers: int = 32,
-    generate_kwargs: dict = {},
+    generate_kwargs: dict | None = None,
+    desc: str = "generating",
     output_path: str = "results.jsonl",
+    overwrite: bool = False,
 ):
+    output = Path(output_path)
+    if overwrite:
+        output.write_text("")
+    elif output.exists():
+        raise FileExistsError(f"Output file {output_path} already exists and overwrite is disabled")
+    
     results = {}
-    for i, result in generate_batch_iterator(client, model, messages_batch, max_workers, generate_kwargs):
+    async for i, result in generate_batch_iterator(
+        client, model, messages_batch, max_workers, generate_kwargs, desc
+    ):
         jsonl_append(output_path, {**result, "index": i})
         results[i] = result
     return [results[i] for i in sorted(results.keys())]
+
 
 async def main():
     from dotenv import load_dotenv
@@ -97,10 +118,14 @@ async def main():
             "temperature": 0.7,
             "max_tokens": 16
         },
+        desc="openai, incremental write",
         output_path="results_1.jsonl",
     )
     results_2 = await generate_batch(
-        client=AsyncOpenAI(api_key=os.getenv("OPENROUTER_API_KEY")),
+        client=AsyncOpenAI(
+            api_key=os.getenv("OPENROUTER_API_KEY"),
+            base_url="https://openrouter.ai/api/v1",
+        ),
         model="deepseek/deepseek-chat-v3.1",
         messages_batch=[
             [{"role": "user", "content": "Hello, how are you?"}],
@@ -110,8 +135,11 @@ async def main():
             "temperature": 0.7,
             "max_tokens": 16
         },
-        output_path="results_2.jsonl",
+        desc="deepseek, batch write",
     )
+    print(results_1)
+    print(results_2)
+
 
 if __name__ == "__main__":
     asyncio.run(main())
