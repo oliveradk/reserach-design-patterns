@@ -43,13 +43,13 @@ async def generate_batch(
         generate_kwargs = {}
     
     semaphore = asyncio.Semaphore(max_workers)
-    tasks = [
-        asyncio.create_task(
+    results = await tqdm_asyncio.gather(
+        *(
             generate(client, semaphore, model, messages, generate_kwargs)
-        )
-        for messages in messages_batch
-    ]
-    results = await tqdm_asyncio.gather(*tasks, desc=desc)
+            for messages in messages_batch
+        ),
+        desc=desc,
+    )
 
     return results
 
@@ -127,7 +127,7 @@ async def main():
             "max_tokens": 16
         },
         desc="openai, incremental write",
-        output_path="results_1.jsonl",
+        output_path="output/results_1.jsonl",
     )
     results_2 = await generate_batch(
         client=AsyncOpenAI(
