@@ -4,7 +4,7 @@
 # Three modes:
 #   generate_batch              — collect all results at the end (tqdm_asyncio.gather)
 #   generate_batch_iterator     — yield (index, result) as each call finishes (asyncio.as_completed)
-#   generate_batch_write_incremental — same as iterator, but appends each result to a JSONL file
+#   generate_batch_write_incremental — uses iterator to incrementally write results to a JSONL file, returns results in original order
 
 import asyncio
 import os
