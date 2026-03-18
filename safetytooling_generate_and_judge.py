@@ -55,27 +55,30 @@ async def binary_judge(
     }
 
 
-
-
 async def pirate_judge(
     api: InferenceAPI,
     model: str,
     gen_messages: list[dict[str, str]],
     gen_response: str,
 ) -> dict:
-    """Binary judge for pirate-likeness. Uses jinja templates."""
-    from pathlib import Path
-    from jinja2 import Environment, FileSystemLoader
-
-    templates_dir = Path(__file__).parent / "templates" / "pirate_judge"
-    env = Environment(loader=FileSystemLoader(templates_dir))
-    system_template = env.get_template("system.jinja")
-    user_template = env.get_template("user.jinja")
+    """Binary judge for pirate-likeness."""
+    system_prompt = (
+        "You are an LLM classifying whether responses are pirate-like."
+    )
+    user_template = (
+        "Determine whether the following response to the given prompt is pirate-like "
+        "(uses pirate speak, pirate mannerisms, pirate vocabulary, etc.).\n"
+        "\n"
+        "Respond with ONLY 'yes' or 'no'.\n"
+        "\n"
+        "Prompt: {prompt}\n"
+        "Response: {response}"
+    )
 
     first_user = next(m["content"] for m in gen_messages if m["role"] == "user")
     messages = [
-        {"role": "system", "content": system_template.render()},
-        {"role": "user", "content": user_template.render(prompt=first_user, response=gen_response)},
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_template.format(prompt=first_user, response=gen_response)},
     ]
     return await binary_judge(api, model, messages, judge_tag="pirate")
 
@@ -136,6 +139,14 @@ async def main():
         messages_batch=messages_batch,
         generate_kwargs={"max_tokens": 64},
     )
+    with open("output/judge_prompts.txt", "w") as f:
+        for i, r in enumerate(results):
+            f.write(f"=== Result {i} ===\n")
+            f.write(f"Judge system: {r['judge']['messages'][0]['content']}\n\n")
+            f.write(f"Judge user:\n{r['judge']['messages'][1]['content']}\n\n")
+            f.write(f"Classification: {r['judge']['classification']}\n")
+            f.write(f"\n")
+
     for r in results:
         print(f"  Q: {r['messages'][-1]['content']}")
         print(f"  A: {r['response']}")
