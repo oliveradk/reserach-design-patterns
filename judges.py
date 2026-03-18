@@ -177,6 +177,35 @@ async def multi_criterion_scoring_judge(
 
 
 # ---------------------------------------------------------------------------
+# 5. Scoring judge — parses a single <criterion>score</criterion> tag
+# ---------------------------------------------------------------------------
+
+async def scoring_judge(
+    api: InferenceAPI,
+    model: str,
+    messages: list[dict[str, str]],
+    criterion: str,
+    tag: str = "",
+) -> dict:
+    """Single-criterion scoring judge. Parses <criterion>score</criterion> tag."""
+    prompt = messages_to_prompt(messages)
+    responses: list[LLMResponse] = await api(
+        model_id=model, prompt=prompt, temperature=0,
+    )
+    raw = responses[0].completion
+
+    match = re.search(rf"<{re.escape(criterion)}>\s*(\d+)\s*</{re.escape(criterion)}>", raw, re.IGNORECASE)
+    score = int(match.group(1)) if match else None
+
+    return {
+        "messages": messages,
+        "response": raw,
+        "score": score,
+        "tag": tag,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Demo
 # ---------------------------------------------------------------------------
 
@@ -252,6 +281,26 @@ async def main():
             tag="multi",
         )
         print(f"  {resp[:50]}... -> {result['scores']}")
+
+    # --- Scoring judge ---
+    print("\n=== Scoring Judge ===")
+    for resp in [pirate_response, normal_response]:
+        result = await scoring_judge(
+            api=api,
+            model="gpt-4.1-mini",
+            messages=[
+                {"role": "system", "content": "You are an LLM scoring how pirate-like a response is."},
+                {"role": "user", "content": (
+                    "Rate how pirate-like this response is on a scale of 1-5. "
+                    "Output your score in an XML tag like <pirate_score>score</pirate_score>.\n"
+                    "\n"
+                    f"Response: {resp}"
+                )},
+            ],
+            criterion="pirate_score",
+            tag="pirate",
+        )
+        print(f"  {resp[:50]}... -> score={result['score']}")
 
 
 if __name__ == "__main__":
