@@ -3,11 +3,12 @@
 # The batched version runs both steps within the same semaphore slot.
 
 import asyncio
-import re
 
 from safetytooling.apis import InferenceAPI
 from safetytooling.data_models import ChatMessage, MessageRole, Prompt, LLMResponse
 from tqdm.asyncio import tqdm_asyncio
+
+from judges import binary_judge
 
 
 def messages_to_prompt(messages: list[dict[str, str]]) -> Prompt:
@@ -29,29 +30,6 @@ async def generate(
     return {
         "messages": messages,
         "response": responses[0].completion,
-    }
-
-
-YES_NO_PATTERN = re.compile(r"\b(yes|no)\b", re.IGNORECASE)
-
-
-async def binary_judge(
-    api: InferenceAPI,
-    model: str,
-    messages: list[dict[str, str]],
-    tag: str = "",
-) -> dict:
-    """Generic binary judge. Returns classification (bool or None on parse error)."""
-    prompt = messages_to_prompt(messages)
-    responses: list[LLMResponse] = await api(model_id=model, prompt=prompt, temperature=0, max_tokens=1)
-    raw = responses[0].completion
-    match = YES_NO_PATTERN.search(raw)
-    classification = match.group(1).lower() == "yes" if match else None
-    return {
-        "messages": messages,
-        "response": raw,
-        "classification": classification,
-        "tag": tag,
     }
 
 

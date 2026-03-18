@@ -9,6 +9,7 @@ import asyncio
 
 from safetytooling.apis import InferenceAPI
 from safetytooling.data_models import ChatMessage, MessageRole, Prompt, LLMResponse
+from tqdm.asyncio import tqdm_asyncio
 
 
 async def generate(
@@ -45,8 +46,6 @@ async def generate_batch(
         generate(api, model, messages, **generate_kwargs)
         for messages in messages_batch
     ]
-
-    from tqdm.asyncio import tqdm_asyncio
 
     results = await tqdm_asyncio.gather(*tasks, desc=desc)
     return list(results)
