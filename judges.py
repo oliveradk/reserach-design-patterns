@@ -1,6 +1,6 @@
 # Judge types using safety-tooling's InferenceAPI:
-#   1. BinaryJudge            — yes/no classification via regex parsing
-#   2. BinaryLogitJudge       — yes/no classification via token logprobs
+#   1. BinaryJudge            — yes/no label via regex parsing
+#   2. BinaryLogitJudge       — yes/no label via token logprobs
 #   3. ScoringLogitJudge      — numeric score (1-5) via token logprobs
 #   4. MultiCriterionScoringJudge — multiple named scores parsed from XML tags
 
@@ -53,7 +53,7 @@ def expected_score_from_logprobs(
 
 
 # ---------------------------------------------------------------------------
-# 1. Binary judge — yes/no classification via regex parsing
+# 1. Binary judge — yes/no label via regex parsing
 # ---------------------------------------------------------------------------
 
 YES_NO_PATTERN = re.compile(r"\b(yes|no)\b", re.IGNORECASE)
@@ -65,16 +65,16 @@ async def binary_judge(
     messages: list[dict[str, str]],
     tag: str = "",
 ) -> dict:
-    """Generic binary judge. Returns classification (bool or None on parse error)."""
+    """Generic binary judge. Returns label (bool or None on parse error)."""
     prompt = messages_to_prompt(messages)
     responses: list[LLMResponse] = await api(model_id=model, prompt=prompt, temperature=0, max_tokens=1)
     raw = responses[0].completion
     match = YES_NO_PATTERN.search(raw)
-    classification = match.group(1).lower() == "yes" if match else None
+    label = match.group(1).lower() == "yes" if match else None
     return {
         "messages": messages,
         "response": raw,
-        "classification": classification,
+        "label": label,
         "tag": tag,
     }
 
@@ -89,7 +89,7 @@ async def binary_logit_judge(
     messages: list[dict[str, str]],
     tag: str = "",
 ) -> dict:
-    """Binary judge using logprobs. Returns logit (yes > no) and classification."""
+    """Binary judge using logprobs. Returns logit (yes > no) and label."""
     prompt = messages_to_prompt(messages)
     responses: list[LLMResponse] = await api(
         model_id=model, prompt=prompt, temperature=0, max_tokens=4, logprobs=5,
@@ -102,12 +102,12 @@ async def binary_logit_judge(
         tokens2=("no", "No", "NO", "n", "N"),
         token_idx=0,
     )
-    classification = logit > 0 if logit is not None else None
+    label = logit > 0 if logit is not None else None
 
     return {
         "messages": messages,
         "response": response.completion,
-        "classification": classification,
+        "label": label,
         "logit": logit,
         "tag": tag,
     }
@@ -239,7 +239,7 @@ async def main():
             ],
             tag="pirate",
         )
-        print(f"  {resp[:50]}... -> {result['classification']} (logit={result['logit']})")
+        print(f"  {resp[:50]}... -> {result['label']} (logit={result['logit']})")
 
     # --- Scoring logit judge ---
     print("\n=== Scoring Logit Judge ===")

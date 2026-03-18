@@ -80,7 +80,7 @@ async def batched_generate_and_pirate_judge(
         async with semaphore:
             gen_result = await generate(api, generate_model, messages, **generate_kwargs)
             judge_result = await pirate_judge(api, judge_model, messages, gen_result["response"])
-        return {**gen_result, "judge": judge_result}
+        return {**gen_result, "label": judge_result["label"], "judge": judge_result}
 
     results = await tqdm_asyncio.gather(
         *(_throttled_generate_and_judge(messages) for messages in messages_batch),
@@ -122,13 +122,13 @@ async def main():
             f.write(f"=== Result {i} ===\n")
             f.write(f"Judge system: {r['judge']['messages'][0]['content']}\n\n")
             f.write(f"Judge user:\n{r['judge']['messages'][1]['content']}\n\n")
-            f.write(f"Classification: {r['judge']['classification']}\n")
+            f.write(f"Classification: {r['judge']['label']}\n")
             f.write(f"\n")
 
     for r in results:
         print(f"  Q: {r['messages'][-1]['content']}")
         print(f"  A: {r['response']}")
-        print(f"  Pirate? {r['judge']['classification']} (tag: {r['judge']['tag']})")
+        print(f"  Pirate? {r['judge']['label']} (tag: {r['judge']['tag']})")
         print()
 
 
