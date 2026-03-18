@@ -39,7 +39,7 @@ async def binary_judge(
     api: InferenceAPI,
     model: str,
     messages: list[dict[str, str]],
-    judge_tag: str = "",
+    tag: str = "",
 ) -> dict:
     """Generic binary judge. Returns classification (bool or None on parse error)."""
     prompt = messages_to_prompt(messages)
@@ -51,7 +51,7 @@ async def binary_judge(
         "messages": messages,
         "response": raw,
         "classification": classification,
-        "judge_tag": judge_tag,
+        "tag": tag,
     }
 
 
@@ -80,7 +80,7 @@ async def pirate_judge(
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_template.format(prompt=first_user, response=gen_response)},
     ]
-    return await binary_judge(api, model, messages, judge_tag="pirate")
+    return await binary_judge(api, model, messages, tag="pirate")
 
 
 async def batched_generate_and_pirate_judge(
@@ -150,7 +150,7 @@ async def main():
     for r in results:
         print(f"  Q: {r['messages'][-1]['content']}")
         print(f"  A: {r['response']}")
-        print(f"  Pirate? {r['judge']['classification']} (tag: {r['judge']['judge_tag']})")
+        print(f"  Pirate? {r['judge']['classification']} (tag: {r['judge']['tag']})")
         print()
 
 
