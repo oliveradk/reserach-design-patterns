@@ -17,18 +17,16 @@ from tqdm.asyncio import tqdm_asyncio
 
 async def generate(
     client: AsyncOpenAI,
-    semaphore: asyncio.Semaphore,
     model: str,
     messages: list[dict[str, str]],
-    generate_kwargs: dict
+    **kwargs,
 ) -> dict:
-    async with semaphore:
-        response = await client.chat.completions.create(
-            model=model,
-            messages=messages,
-            **generate_kwargs
-        ) 
-        return {"messages": messages, "response": response.choices[0].message.content}
+    response = await client.chat.completions.create(
+        model=model,
+        messages=messages,
+        **kwargs,
+    )
+    return {"messages": messages, "response": response.choices[0].message.content}
 
 
 async def generate_batch(
@@ -41,13 +39,15 @@ async def generate_batch(
 ):
     if generate_kwargs is None:
         generate_kwargs = {}
-    
+
     semaphore = asyncio.Semaphore(max_workers)
+
+    async def _throttled_generate(messages):
+        async with semaphore:
+            return await generate(client, model, messages, **generate_kwargs)
+
     results = await tqdm_asyncio.gather(
-        *(
-            generate(client, semaphore, model, messages, generate_kwargs)
-            for messages in messages_batch
-        ),
+        *(_throttled_generate(messages) for messages in messages_batch),
         desc=desc,
     )
 
@@ -65,14 +65,14 @@ async def generate_batch_iterator(
     if generate_kwargs is None:
         generate_kwargs = {}
     semaphore = asyncio.Semaphore(max_workers)
-    
-    # Tag each task with its original index
-    async def indexed_generate(i: int, messages: list[dict[str, str]]) -> tuple[int, dict]:
-        result = await generate(client, semaphore, model, messages, generate_kwargs)
+
+    async def _indexed_generate(i: int, messages: list[dict[str, str]]) -> tuple[int, dict]:
+        async with semaphore:
+            result = await generate(client, model, messages, **generate_kwargs)
         return i, result
 
     tasks = [
-        asyncio.create_task(indexed_generate(i, messages)) 
+        asyncio.create_task(_indexed_generate(i, messages))
         for i, messages in enumerate(messages_batch)
     ]
 
